@@ -1,65 +1,229 @@
-import Image from "next/image";
+"use client";
+
+import { useState, useRef, useEffect, useCallback } from "react";
+
+type Message = {
+  role: "user" | "ai";
+  content: string;
+};
 
 export default function Home() {
+  const [input, setInput] = useState("");
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [ttsReady, setTtsReady] = useState(false);
+  const [recording, setRecording] = useState(false);
+  const bottomRef = useRef<HTMLDivElement>(null);
+  const audioRef = useRef<HTMLAudioElement>(null);
+  const recognitionRef = useRef<any>(null);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  // 语音识别
+  const startRecording = useCallback(() => {
+    const SpeechRecognition =
+      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      alert("你的浏览器不支持语音输入，请使用 Chrome");
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.lang = "zh-CN";
+    recognition.interimResults = false;
+    recognition.continuous = false;
+
+    recognition.onstart = () => setRecording(true);
+    recognition.onend = () => setRecording(false);
+    recognition.onerror = () => setRecording(false);
+    recognition.onresult = (e: any) => {
+      const text = e.results[0][0].transcript;
+      setInput((prev) => prev + text);
+    };
+
+    recognitionRef.current = recognition;
+    recognition.start();
+  }, []);
+
+  const stopRecording = useCallback(() => {
+    recognitionRef.current?.stop();
+    setRecording(false);
+  }, []);
+
+  const toggleRecording = () => {
+    if (recording) {
+      stopRecording();
+    } else {
+      startRecording();
+    }
+  };
+
+  const handleSend = async () => {
+    if (!input.trim() || loading) return;
+
+    const userMsg: Message = { role: "user", content: input };
+    setMessages((prev) => [...prev, userMsg]);
+    setInput("");
+    setLoading(true);
+
+    try {
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: input }),
+      });
+      const data = await res.json();
+      const aiMsg: Message = { role: "ai", content: data.reply };
+      setMessages((prev) => [...prev, aiMsg]);
+
+      if (ttsReady) {
+        playTTS(data.reply);
+      }
+    } catch {
+      setMessages((prev) => [
+        ...prev,
+        { role: "ai", content: "连接失败，请稍后重试" },
+      ]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const playTTS = async (text: string) => {
+    try {
+      const res = await fetch("/api/tts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text, speaker: "default" }),
+      });
+      if (!res.ok) throw new Error("TTS 未就绪");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      if (audioRef.current) {
+        audioRef.current.src = url;
+        audioRef.current.play();
+      }
+    } catch {
+      console.log("TTS 暂不可用");
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
+  };
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <div className="app-root">
+      {/* Header */}
+      <header className="app-header">
+        <div className="header-left">
+          <span className="brand-dot" />
+          <div>
+            <h1 className="header-title">英文语伴</h1>
+            <p className="header-subtitle">你说中文，AI 用英文回复你</p>
+          </div>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+        <div className="header-right">
+          <span className={`status-dot ${ttsReady ? "active" : ""}`} />
+          <span className="status-label">{ttsReady ? "语音就绪" : "文本模式"}</span>
         </div>
-      </main>
+      </header>
+
+      {/* Messages */}
+      <div className="chat-area">
+        {messages.length === 0 ? (
+          <div className="empty-state">
+            <div className="empty-icon">🎧</div>
+            <p className="empty-title">开始你的英语练习</p>
+            <p className="empty-desc">
+              输入或说出中文，AI 会用地道英语回复你
+            </p>
+          </div>
+        ) : (
+          <div className="messages-container">
+            {messages.map((msg, i) => (
+              <div
+                key={i}
+                className={`message-row ${msg.role === "user" ? "user" : "ai"}`}
+              >
+                <div className="bubble">
+                  <p>{msg.content}</p>
+                  {msg.role === "ai" && (
+                    <button
+                      onClick={() => playTTS(msg.content)}
+                      className="play-btn"
+                    >
+                      播放语音
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+
+            {loading && (
+              <div className="message-row ai">
+                <div className="bubble loading-bubble">
+                  <span className="dot-pulse" />
+                  <span className="dot-pulse" />
+                  <span className="dot-pulse" />
+                </div>
+              </div>
+            )}
+            <div ref={bottomRef} />
+          </div>
+        )}
+      </div>
+
+      {/* Input */}
+      <div className="input-area">
+        <div className="input-bar">
+          <button
+            onClick={toggleRecording}
+            className={`mic-btn ${recording ? "recording" : ""}`}
+            title={recording ? "停止录音" : "语音输入"}
+          >
+            {recording ? "⏹" : "🎤"}
+          </button>
+          <textarea
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="输入中文，和 AI 英文聊天..."
+            rows={1}
+            className="input-field"
+          />
+          <button
+            onClick={handleSend}
+            disabled={!input.trim() || loading}
+            className="send-btn"
+          >
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M22 2L11 13" />
+              <path d="M22 2L15 22L11 13L2 9L22 2Z" />
+            </svg>
+          </button>
+        </div>
+        <p className="input-hint">
+          Enter 发送 · Shift+Enter 换行
+          {recording && <span className="recording-hint"> · 录音中...</span>}
+        </p>
+      </div>
+
+      <audio ref={audioRef} className="hidden" />
     </div>
   );
 }
