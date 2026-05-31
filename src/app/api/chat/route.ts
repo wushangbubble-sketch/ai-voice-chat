@@ -85,7 +85,13 @@ export async function POST(request: NextRequest) {
       "Content-Type": "application/json",
       Authorization: `Bearer ${apiKey}`,
     },
-    body: JSON.stringify({ model: "deepseek-chat", messages, stream: false }),
+    body: JSON.stringify({
+      model: "deepseek-chat",
+      messages,
+      stream: false,
+      max_tokens: 200,
+      temperature: 0.3,
+    }),
   });
 
   const data = await res.json();

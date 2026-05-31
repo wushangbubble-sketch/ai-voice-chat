@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
       SessionId: crypto.randomUUID(),
       VoiceType: 200000000,
       FastVoiceType: "WCHN-80cb16a356db409dbef3a1389bc259cb",
-      Codec: "wav",
+      Codec: "mp3",
       PrimaryLanguage: 2,
     });
     const t2 = Date.now();
@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
 
     return new Response(audioBuffer, {
       headers: {
-        "Content-Type": "audio/wav",
+        "Content-Type": "audio/mpeg",
         "Cache-Control": "no-cache",
         "Server-Timing": `init;dur=${t1 - t0},tts;dur=${t2 - t1}`,
       },
