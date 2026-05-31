@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 
 export async function POST(request: NextRequest) {
+  const t0 = Date.now();
   const { text } = await request.json();
 
   if (!text) {
@@ -26,6 +27,7 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    const t1 = Date.now();
     const data = await client.TextToVoice({
       Text: text,
       SessionId: crypto.randomUUID(),
@@ -34,6 +36,7 @@ export async function POST(request: NextRequest) {
       Codec: "wav",
       PrimaryLanguage: 2,
     });
+    const t2 = Date.now();
 
     const audioBuffer = Buffer.from(data.Audio!, "base64");
 
@@ -41,6 +44,7 @@ export async function POST(request: NextRequest) {
       headers: {
         "Content-Type": "audio/wav",
         "Cache-Control": "no-cache",
+        "Server-Timing": `init;dur=${t1 - t0},tts;dur=${t2 - t1}`,
       },
     });
   } catch (e) {

@@ -35,6 +35,7 @@ export default function Home() {
   }, [appState]);
 
   const sendMessage = async (text: string) => {
+    const t0 = performance.now();
     setAppState("processing");
     setAiText({ en: "...", zh: "..." });
     setTextKey((k) => k + 1);
@@ -46,6 +47,16 @@ export default function Home() {
         body: JSON.stringify({ text }),
       });
       const data = await res.json();
+      const tChat = performance.now();
+      const chatTiming = data.timing as
+        | { parse: number; deepseek: number }
+        | undefined;
+      console.log(
+        `[Timing] /api/chat: ${Math.round(tChat - t0)}ms total` +
+          (chatTiming
+            ? ` (parse=${chatTiming.parse}ms, deepseek=${chatTiming.deepseek}ms)`
+            : "")
+      );
 
       setAiText({ en: data.reply_en, zh: data.reply_zh });
       setTextKey((k) => k + 1);
@@ -60,11 +71,26 @@ export default function Home() {
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ text: data.reply_en, speaker: "default" }),
             });
+            const tTts = performance.now();
+            console.log(
+              `[Timing] /api/tts: ${Math.round(tTts - tChat)}ms` +
+                ` | Server-Timing: ${ttsRes.headers.get("Server-Timing")}`
+            );
             if (ttsRes.ok) {
               const blob = await ttsRes.blob();
               const url = URL.createObjectURL(blob);
               if (audioRef.current) {
                 audioRef.current.onended = () => {
+                  console.log(
+                    `[Timing] Audio playback: ${Math.round(
+                      performance.now() - tTts
+                    )}ms`
+                  );
+                  console.log(
+                    `[Timing] FULL CHAIN: ${Math.round(
+                      performance.now() - t0
+                    )}ms`
+                  );
                   setAppState("idle");
                   setAiText({ en: "Hi, I'm ready.", zh: "你好，我已经准备好了。" });
                   setTextKey((k) => k + 1);

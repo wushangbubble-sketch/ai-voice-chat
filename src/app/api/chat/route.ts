@@ -52,6 +52,7 @@ const SYSTEM_PROMPT =
   '回复：{"user_en": "I had a really tiring day at work.", "reply_en": "I hear you! Working hard can really drain your energy. Make sure to get some good rest tonight.", "reply_zh": "我理解！努力工作确实很消耗精力。今晚一定要好好休息。"}';
 
 export async function POST(request: NextRequest) {
+  const t0 = Date.now();
   const { text } = await request.json();
   if (!text) {
     return Response.json({ error: "请输入文本" }, { status: 400 });
@@ -77,6 +78,7 @@ export async function POST(request: NextRequest) {
     { role: "user" as const, content: text },
   ];
 
+  const t1 = Date.now();
   const res = await fetch("https://api.deepseek.com/v1/chat/completions", {
     method: "POST",
     headers: {
@@ -88,6 +90,7 @@ export async function POST(request: NextRequest) {
 
   const data = await res.json();
   const content = data.choices?.[0]?.message?.content || "";
+  const t2 = Date.now();
 
   // Persist this turn
   pushEntry(ip, { role: "user", content: text });
@@ -99,6 +102,7 @@ export async function POST(request: NextRequest) {
       user_en: parsed.user_en || text,
       reply_en: stripChinese(parsed.reply_en || content),
       reply_zh: parsed.reply_zh || content,
+      timing: { parse: t1 - t0, deepseek: t2 - t1 },
     });
   } catch {
     const englishOnly = stripChinese(content);
@@ -106,6 +110,7 @@ export async function POST(request: NextRequest) {
       user_en: text,
       reply_en: englishOnly || content,
       reply_zh: content,
+      timing: { parse: t1 - t0, deepseek: t2 - t1 },
     });
   }
 }
