@@ -13,8 +13,15 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "AI 英文语伴 - 你说中文，AI 用英文回复你",
-  description: "输入中文，AI 用地道英语口语回复你，支持语音播放。英语陪练新方式。",
+  title: "AI 英文语伴 - 语音陪练",
+  description: "按下按钮开始说话，AI 用英语口语回复你。英语陪练新方式。",
+};
+
+export const viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
 };
 
 export default function RootLayout({
