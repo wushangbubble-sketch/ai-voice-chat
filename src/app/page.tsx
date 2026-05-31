@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 
 type AppState = "idle" | "listening" | "processing" | "speaking";
 
@@ -15,6 +15,24 @@ export default function Home() {
   const audioChunksRef = useRef<Blob[]>([]);
   const streamRef = useRef<MediaStream | null>(null);
   const transcriptRef = useRef<string>("");
+
+  // Safety timeout: if speaking state lasts >15s (e.g. mobile audio.onended didn't fire), reset to idle
+  const speakingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (appState === "speaking") {
+      speakingTimerRef.current = setTimeout(() => {
+        setAppState("idle");
+        setAiText({ en: "Hi, I'm ready.", zh: "你好，我已经准备好了。" });
+        setTextKey((k) => k + 1);
+      }, 15000);
+    }
+    return () => {
+      if (speakingTimerRef.current) {
+        clearTimeout(speakingTimerRef.current);
+        speakingTimerRef.current = null;
+      }
+    };
+  }, [appState]);
 
   const sendMessage = async (text: string) => {
     setAppState("processing");
@@ -52,7 +70,12 @@ export default function Home() {
                   setTextKey((k) => k + 1);
                 };
                 audioRef.current.src = url;
-                audioRef.current.play();
+                audioRef.current.play().catch(() => {
+                  // Mobile browsers may reject play() after first use; reset to idle
+                  setAppState("idle");
+                  setAiText({ en: "Hi, I'm ready.", zh: "你好，我已经准备好了。" });
+                  setTextKey((k) => k + 1);
+                });
               }
             }
           } catch {
